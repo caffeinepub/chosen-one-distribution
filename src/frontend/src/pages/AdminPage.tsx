@@ -47,6 +47,7 @@ import {
   Trash2,
   TrendingUp,
   Upload,
+  Users,
   X,
 } from "lucide-react";
 import { motion } from "motion/react";
@@ -54,7 +55,7 @@ import { useEffect, useState } from "react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
 import type { Page } from "../App";
-import type { Track } from "../backend.d";
+import type { Track, UploaderEarning } from "../backend.d";
 import { useBlobStorage } from "../hooks/useBlobStorage";
 import {
   useAddTrack,
@@ -214,7 +215,7 @@ export default function AdminPage({
         Math.round(Number.parseFloat(form.priceInDollars) * 100),
       );
 
-      const track: Track = {
+      const track = {
         id: crypto.randomUUID(),
         title: form.title,
         artist: form.artist,
@@ -222,8 +223,8 @@ export default function AdminPage({
         description: form.description,
         priceInCents,
         uploadDate: BigInt(Date.now()) * BigInt(1_000_000),
-        coverArtBlobId,
-        audioFileBlobId,
+        coverArtBlobId: coverArtBlobId || undefined,
+        audioFileBlobId: audioFileBlobId || undefined,
       };
 
       const audioFormat = form.audioFile ? form.audioFile.type : null;
@@ -1002,6 +1003,65 @@ export default function AdminPage({
                     </div>
                   )}
                 </div>
+
+                {/* Uploader Earnings */}
+                {analytics?.uploaderEarnings &&
+                  analytics.uploaderEarnings.length > 0 && (
+                    <div className="glass-card rounded-2xl border border-gold/10 overflow-hidden">
+                      <div className="flex items-center gap-3 p-4 border-b border-gold/10">
+                        <Users className="w-4 h-4 text-gold" />
+                        <h3 className="font-display text-lg font-semibold text-foreground">
+                          Uploader Earnings
+                        </h3>
+                      </div>
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="border-gold/10 hover:bg-transparent">
+                            <TableHead className="text-gold/60">
+                              Uploader
+                            </TableHead>
+                            <TableHead className="text-right text-gold/60">
+                              Tracks
+                            </TableHead>
+                            <TableHead className="text-right text-gold/60">
+                              Sales
+                            </TableHead>
+                            <TableHead className="text-right text-gold/60">
+                              Revenue
+                            </TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {analytics.uploaderEarnings.map(
+                            (u: UploaderEarning, i: number) => (
+                              <TableRow
+                                key={u.uploaderPrincipal}
+                                className="border-gold/5 hover:bg-gold/5"
+                                data-ocid={`uploaderearnings.item.${i + 1}`}
+                              >
+                                <TableCell className="font-mono text-sm text-muted-foreground">
+                                  {u.uploaderPrincipal.slice(0, 8)}...
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Badge className="bg-gold/5 text-gold/70 border-gold/10 text-xs">
+                                    {String(u.trackCount)}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Badge className="bg-gold/10 text-gold border-gold/20 text-xs">
+                                    {String(u.totalPurchases)}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-right font-semibold text-gold">
+                                  {fmtRevenue(u.totalRevenueInCents)}
+                                </TableCell>
+                              </TableRow>
+                            ),
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
               </motion.div>
             )}
           </TabsContent>

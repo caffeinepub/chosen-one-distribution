@@ -7,6 +7,7 @@ import {
   Music,
   Pause,
   Play,
+  Share2,
   ShoppingCart,
 } from "lucide-react";
 import { motion } from "motion/react";
@@ -206,6 +207,37 @@ export default function TrackCard({
     }
   };
 
+  const handleShare = async () => {
+    const shareUrl = `${window.location.origin}/?track=${track.id}`;
+    const shareData = {
+      title: `${track.title} — ${track.artist}`,
+      text: `Check out "${track.title}" by ${track.artist} on Chosen One 👑 Distribution`,
+      url: shareUrl,
+    };
+
+    if (
+      navigator.share &&
+      navigator.canShare &&
+      navigator.canShare(shareData)
+    ) {
+      try {
+        await navigator.share(shareData);
+      } catch (err) {
+        // User cancelled — not an error
+        if ((err as DOMException).name !== "AbortError") {
+          toast.error("Share failed.");
+        }
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        toast.success("Link copied to clipboard!");
+      } catch {
+        toast.error("Could not copy link.");
+      }
+    }
+  };
+
   return (
     <motion.article
       initial={{ opacity: 0, y: 24 }}
@@ -229,10 +261,17 @@ export default function TrackCard({
           </div>
         )}
         {/* Genre badge */}
-        <div className="absolute top-2 right-2">
+        <div className="absolute top-2 right-2 flex flex-col items-end gap-1">
           <Badge className="bg-black/70 text-gold border border-gold/30 text-[10px] tracking-widest uppercase">
             {track.genre}
           </Badge>
+          {track.isPreSell &&
+            track.releaseDate &&
+            BigInt(Date.now()) * BigInt(1_000_000) < track.releaseDate && (
+              <Badge className="bg-gold text-black border-gold text-[10px] tracking-widest uppercase font-bold animate-pulse">
+                PRE-ORDER
+              </Badge>
+            )}
         </div>
         {/* Lock overlay if not purchased */}
         {!isPurchased && (
@@ -279,6 +318,16 @@ export default function TrackCard({
           <p className="text-muted-foreground text-sm mt-1 font-medium">
             {track.artist}
           </p>
+          {track.isPreSell &&
+            track.releaseDate &&
+            BigInt(Date.now()) * BigInt(1_000_000) < track.releaseDate && (
+              <p className="text-[11px] text-gold/70 mt-0.5 font-medium">
+                Releases{" "}
+                {new Date(
+                  Number(track.releaseDate) / 1_000_000,
+                ).toLocaleDateString()}
+              </p>
+            )}
         </div>
 
         {track.description && (
@@ -287,41 +336,59 @@ export default function TrackCard({
           </p>
         )}
 
-        <div className="flex items-center justify-between mt-auto pt-2 border-t border-gold/10">
-          <span className="text-gold font-bold font-display text-lg">
+        <div className="flex items-center justify-between mt-auto pt-2 border-t border-gold/10 gap-2">
+          <span className="text-gold font-bold font-display text-lg shrink-0">
             {priceDisplay}
           </span>
-          {isPurchased ? (
+          <div className="flex items-center gap-1.5">
             <Button
               size="sm"
-              onClick={handleDownload}
-              disabled={isDownloading}
-              data-ocid={`catalog.download_button.${index + 1}`}
-              className="gold-glow-btn rounded-md h-8 px-3 text-xs"
+              variant="ghost"
+              onClick={handleShare}
+              data-ocid={`catalog.secondary_button.${index + 1}`}
+              aria-label="Share track"
+              className="h-8 w-8 p-0 rounded-md text-gold/60 hover:text-gold hover:bg-gold/10 border border-gold/20 hover:border-gold/50 transition-colors"
             >
-              {isDownloading ? (
-                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-              ) : (
-                <Download className="w-3 h-3 mr-1" />
-              )}
-              {isDownloading ? "..." : "Download"}
+              <Share2 className="w-3.5 h-3.5" />
             </Button>
-          ) : (
-            <Button
-              size="sm"
-              onClick={handleBuy}
-              disabled={createCheckout.isPending}
-              data-ocid={`catalog.buy_button.${index + 1}`}
-              className="gold-glow-btn rounded-md h-8 px-3 text-xs"
-            >
-              {createCheckout.isPending ? (
-                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-              ) : (
-                <ShoppingCart className="w-3 h-3 mr-1" />
-              )}
-              {createCheckout.isPending ? "..." : "Buy & Download"}
-            </Button>
-          )}
+            {isPurchased ? (
+              <Button
+                size="sm"
+                onClick={handleDownload}
+                disabled={isDownloading}
+                data-ocid={`catalog.download_button.${index + 1}`}
+                className="gold-glow-btn rounded-md h-8 px-3 text-xs"
+              >
+                {isDownloading ? (
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                ) : (
+                  <Download className="w-3 h-3 mr-1" />
+                )}
+                {isDownloading ? "..." : "Download"}
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                onClick={handleBuy}
+                disabled={createCheckout.isPending}
+                data-ocid={`catalog.buy_button.${index + 1}`}
+                className="gold-glow-btn rounded-md h-8 px-3 text-xs"
+              >
+                {createCheckout.isPending ? (
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                ) : (
+                  <ShoppingCart className="w-3 h-3 mr-1" />
+                )}
+                {createCheckout.isPending
+                  ? "..."
+                  : track.isPreSell &&
+                      track.releaseDate &&
+                      BigInt(Date.now()) * BigInt(1_000_000) < track.releaseDate
+                    ? "Pre-Order"
+                    : "Buy & Download"}
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </motion.article>

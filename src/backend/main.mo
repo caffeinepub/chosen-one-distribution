@@ -1,14 +1,14 @@
 import Map "mo:core/Map";
 import Set "mo:core/Set";
 import Text "mo:core/Text";
-import Blob "mo:core/Blob";
+import _Blob "mo:core/Blob";
 import Array "mo:core/Array";
 import Iter "mo:core/Iter";
 import Principal "mo:core/Principal";
 import Time "mo:core/Time";
 import Runtime "mo:core/Runtime";
 
-import Storage "blob-storage/Storage";
+import _Storage "blob-storage/Storage";
 import MixinStorage "blob-storage/Mixin";
 
 import Stripe "stripe/stripe";
@@ -18,6 +18,7 @@ import AccessControl "authorization/access-control";
 import MixinAuthorization "authorization/MixinAuthorization";
 
 actor {
+  // Stable Track type — unchanged for backward compatibility
   type Track = {
     id : Text;
     title : Text;
@@ -34,6 +35,21 @@ actor {
     public func compare(track1 : Track, track2 : Track) : { #less; #equal; #greater } {
       Text.compare(track1.id, track2.id);
     };
+  };
+
+  // Enriched type returned to frontend — includes pre-sell fields
+  type TrackWithMeta = {
+    id : Text;
+    title : Text;
+    artist : Text;
+    genre : Text;
+    description : Text;
+    priceInCents : Nat;
+    coverArtBlobId : ?Text;
+    audioFileBlobId : ?Text;
+    uploadDate : Time.Time;
+    isPreSell : Bool;
+    releaseDate : ?Time.Time;
   };
 
   type Purchase = {
@@ -56,8 +72,24 @@ actor {
     revenueInCents : Nat;
   };
 
+  type MyTrackStat = {
+    trackId : Text;
+    title : Text;
+    artist : Text;
+    purchaseCount : Nat;
+    revenueInCents : Nat;
+    previewPlayCount : Nat;
+  };
+
+  type UploaderEarning = {
+    uploaderPrincipal : Text;
+    totalRevenueInCents : Nat;
+    totalPurchases : Nat;
+    trackCount : Nat;
+  };
+
   type RevenuePoint = {
-    dateLabel : Text; // "YYYY-MM-DD"
+    dateLabel : Text;
     revenueInCents : Nat;
     purchaseCount : Nat;
   };
@@ -68,18 +100,19 @@ actor {
     totalRevenueInCents : Nat;
     topTracks : [TrackStat];
     revenueOverTime : [RevenuePoint];
-    trackPlayCounts : [(Text, Nat)]; // (trackId, playCount)
+    trackPlayCounts : [(Text, Nat)];
+    uploaderEarnings : [UploaderEarning];
   };
 
   let tracks = Map.empty<Text, Track>();
   let trackOwners = Map.empty<Text, Principal>();
   let userPurchases = Map.empty<Principal, Set.Set<Purchase>>();
-  // Separate map for audio file formats — safe to add without migration
   let trackAudioFormats = Map.empty<Text, Text>();
-  // Separate map for preview start seconds — safe to add without migration
   let trackPreviewStartSeconds = Map.empty<Text, Nat>();
-  // Play counts for preview tracking
   let trackPlayCounts = Map.empty<Text, Nat>();
+  // Pre-sell data stored separately to avoid stable type migration issues
+  let trackIsPreSell = Map.empty<Text, Bool>();
+  let trackReleaseDates = Map.empty<Text, Time.Time>();
   let accessControlState = AccessControl.initState();
 
   include MixinAuthorization(accessControlState);
@@ -87,7 +120,17 @@ actor {
 
   var stripeConfiguration : ?Stripe.StripeConfiguration = null;
 
-  public shared ({ caller }) func addTrack(track : Track, audioFormat : ?Text, previewStartSecs : ?Nat) : async () {
+  // Helper to enrich a Track with pre-sell metadata
+  func enrichTrack(track : Track) : TrackWithMeta {
+    let isPreSell = switch (trackIsPreSell.get(track.id)) {
+      case (null) { false };
+      case (?v) { v };
+    };
+    let releaseDate = trackReleaseDates.get(track.id);
+    { track with isPreSell; releaseDate };
+  };
+
+  public shared ({ caller }) func addTrack(track : Track, audioFormat : ?Text, previewStartSecs : ?Nat, releaseDateTime : ?Time.Time) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: You must be signed in to upload tracks");
     };
@@ -104,6 +147,15 @@ actor {
     switch (previewStartSecs) {
       case (?secs) { trackPreviewStartSeconds.add(track.id, secs) };
       case (null) {};
+    };
+    switch (releaseDateTime) {
+      case (?rd) {
+        trackIsPreSell.add(track.id, true);
+        trackReleaseDates.add(track.id, rd);
+      };
+      case (null) {
+        trackIsPreSell.add(track.id, false);
+      };
     };
   };
 
@@ -129,17 +181,22 @@ actor {
     trackOwners.remove(trackId);
     trackAudioFormats.remove(trackId);
     trackPreviewStartSeconds.remove(trackId);
+    trackIsPreSell.remove(trackId);
+    trackReleaseDates.remove(trackId);
   };
 
-  public query ({ caller }) func getTrack(trackId : Text) : async ?Track {
-    tracks.get(trackId);
+  public query ({ caller }) func getTrack(trackId : Text) : async ?TrackWithMeta {
+    switch (tracks.get(trackId)) {
+      case (null) { null };
+      case (?track) { ?enrichTrack(track) };
+    };
   };
 
-  public query ({ caller }) func getAllTracks() : async [Track] {
-    tracks.values().toArray().sort();
+  public query ({ caller }) func getAllTracks() : async [TrackWithMeta] {
+    tracks.values().toArray().sort().map(enrichTrack);
   };
 
-  public query ({ caller }) func getMyUploadedTracks() : async [Track] {
+  public query ({ caller }) func getMyUploadedTracks() : async [TrackWithMeta] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: You must be signed in");
     };
@@ -148,7 +205,53 @@ actor {
         case (null) { false };
         case (?owner) { owner == caller };
       };
-    }).sort();
+    }).sort().map(enrichTrack);
+  };
+
+  public query ({ caller }) func getMyTrackStats() : async [MyTrackStat] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: You must be signed in");
+    };
+    let purchaseCountMap = Map.empty<Text, Nat>();
+    let revenueMap = Map.empty<Text, Nat>();
+    for (userPurchaseSet in userPurchases.values()) {
+      for (purchase in userPurchaseSet.toArray().vals()) {
+        let prevCount = switch (purchaseCountMap.get(purchase.trackId)) {
+          case (null) { 0 };
+          case (?n) { n };
+        };
+        purchaseCountMap.add(purchase.trackId, prevCount + 1);
+        let prevRevenue = switch (revenueMap.get(purchase.trackId)) {
+          case (null) { 0 };
+          case (?n) { n };
+        };
+        revenueMap.add(purchase.trackId, prevRevenue + purchase.amountPaidInCents);
+      };
+    };
+    tracks.values().toArray().filter(func(t : Track) : Bool {
+      switch (trackOwners.get(t.id)) {
+        case (null) { false };
+        case (?owner) { owner == caller };
+      };
+    }).map(func(t : Track) : MyTrackStat {
+      let count = switch (purchaseCountMap.get(t.id)) {
+        case (null) { 0 };
+        case (?n) { n };
+      };
+      let rev = switch (revenueMap.get(t.id)) {
+        case (null) { 0 };
+        case (?n) { n };
+      };
+      let plays = switch (trackPlayCounts.get(t.id)) {
+        case (null) { 0 };
+        case (?n) { n };
+      };
+      { trackId = t.id; title = t.title; artist = t.artist; purchaseCount = count; revenueInCents = rev; previewPlayCount = plays };
+    }).sort(func(a : MyTrackStat, b : MyTrackStat) : { #less; #equal; #greater } {
+      if (a.revenueInCents > b.revenueInCents) { #less }
+      else if (a.revenueInCents < b.revenueInCents) { #greater }
+      else { #equal };
+    });
   };
 
   public query ({ caller }) func getTrackAudioFormat(trackId : Text) : async ?Text {
@@ -201,8 +304,7 @@ actor {
         else if (a.purchaseCount < b.purchaseCount) { #greater }
         else { #equal };
       });
-    // Build revenueOverTime grouped by day (nanoseconds -> seconds -> day)
-    let revenueByDay = Map.empty<Text, (Nat, Nat)>(); // dateLabel -> (revenue, count)
+    let revenueByDay = Map.empty<Text, (Nat, Nat)>();
     for (userPurchaseSet in userPurchases.values()) {
       for (purchase in userPurchaseSet.toArray().vals()) {
         let secs = purchase.purchaseDate / 1_000_000_000;
@@ -224,7 +326,33 @@ actor {
         Text.compare(a.dateLabel, b.dateLabel);
       });
     let playCounts = trackPlayCounts.entries().toArray();
-    { totalTracks; totalPurchases; totalRevenueInCents; topTracks; revenueOverTime; trackPlayCounts = playCounts };
+    let uploaderRevenueMap = Map.empty<Text, (Nat, Nat, Nat)>();
+    for ((trackId, owner) in trackOwners.entries()) {
+      let ownerText = owner.toText();
+      let rev = switch (revenueMap.get(trackId)) {
+        case (null) { 0 };
+        case (?n) { n };
+      };
+      let cnt = switch (purchaseCountMap.get(trackId)) {
+        case (null) { 0 };
+        case (?n) { n };
+      };
+      let prev = switch (uploaderRevenueMap.get(ownerText)) {
+        case (null) { (0, 0, 0) };
+        case (?v) { v };
+      };
+      uploaderRevenueMap.add(ownerText, (prev.0 + rev, prev.1 + cnt, prev.2 + 1));
+    };
+    let uploaderEarnings = uploaderRevenueMap.entries().toArray()
+      .map(func(e : (Text, (Nat, Nat, Nat))) : UploaderEarning {
+        { uploaderPrincipal = e.0; totalRevenueInCents = e.1.0; totalPurchases = e.1.1; trackCount = e.1.2 };
+      })
+      .sort(func(a : UploaderEarning, b : UploaderEarning) : { #less; #equal; #greater } {
+        if (a.totalRevenueInCents > b.totalRevenueInCents) { #less }
+        else if (a.totalRevenueInCents < b.totalRevenueInCents) { #greater }
+        else { #equal };
+      });
+    { totalTracks; totalPurchases; totalRevenueInCents; topTracks; revenueOverTime; trackPlayCounts = playCounts; uploaderEarnings };
   };
 
   public shared ({ caller }) func setStripeConfiguration(config : Stripe.StripeConfiguration) : async () {
@@ -325,6 +453,21 @@ actor {
     };
     let hasPurchased = purchases.toArray().any(func(p) { p.trackId == trackId });
     if (not hasPurchased) { Runtime.trap("You must purchase this track to download it") };
+    // Block download if track is pre-sell and release date hasn't arrived
+    let isPreSell = switch (trackIsPreSell.get(trackId)) {
+      case (null) { false };
+      case (?v) { v };
+    };
+    if (isPreSell) {
+      switch (trackReleaseDates.get(trackId)) {
+        case (?rd) {
+          if (Time.now() < rd) {
+            Runtime.trap("Track not yet released. Check back after the release date.");
+          };
+        };
+        case (null) {};
+      };
+    };
     track.audioFileBlobId;
   };
 
@@ -336,7 +479,6 @@ actor {
     track.coverArtBlobId;
   };
 
-  // Anyone can record a preview play (no auth required)
   public shared func recordPreviewPlay(trackId : Text) : async () {
     let prev = switch (trackPlayCounts.get(trackId)) {
       case (null) { 0 };

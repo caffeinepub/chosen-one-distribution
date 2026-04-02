@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Download, Loader2, LogIn, Music } from "lucide-react";
+import { Clock, Download, Loader2, LogIn, Music } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -199,21 +199,40 @@ export default function LibraryPage({
                     </div>
                   </div>
 
-                  {/* Download */}
-                  <Button
-                    size="sm"
-                    onClick={() => handleDownload(track)}
-                    disabled={downloadingId === track.id}
-                    data-ocid={`library.download_button.${i + 1}`}
-                    className="gold-glow-btn rounded-md h-9 px-4 text-xs flex-shrink-0"
-                  >
-                    {downloadingId === track.id ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Download className="w-4 h-4 mr-1" />
-                    )}
-                    {downloadingId === track.id ? "" : "Download"}
-                  </Button>
+                  {/* Download or Coming Soon */}
+                  {track.isPreSell &&
+                  track.releaseDate &&
+                  BigInt(Date.now()) * BigInt(1_000_000) < track.releaseDate ? (
+                    <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                      <div
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-gold/10 border border-gold/30 text-gold text-xs font-semibold"
+                        data-ocid={`library.coming_soon.${i + 1}`}
+                      >
+                        <Clock className="w-3.5 h-3.5" />
+                        Coming Soon
+                      </div>
+                      <span className="text-[10px] text-gold/60">
+                        {new Date(
+                          Number(track.releaseDate) / 1_000_000,
+                        ).toLocaleDateString()}
+                      </span>
+                    </div>
+                  ) : (
+                    <Button
+                      size="sm"
+                      onClick={() => handleDownload(track)}
+                      disabled={downloadingId === track.id}
+                      data-ocid={`library.download_button.${i + 1}`}
+                      className="gold-glow-btn rounded-md h-9 px-4 text-xs flex-shrink-0"
+                    >
+                      {downloadingId === track.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Download className="w-4 h-4 mr-1" />
+                      )}
+                      {downloadingId === track.id ? "" : "Download"}
+                    </Button>
+                  )}
                 </motion.div>
               );
             })}

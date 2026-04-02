@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   AnalyticsResult,
+  MyTrackStat,
   Purchase,
   ShoppingItem,
   StripeConfiguration,
@@ -14,7 +15,7 @@ export function useGetAllTracks() {
     queryKey: ["tracks"],
     queryFn: async () => {
       if (!actor) return [];
-      return actor.getAllTracks();
+      return actor.getAllTracks() as unknown as Track[];
     },
     enabled: !!actor && !isFetching,
   });
@@ -26,7 +27,7 @@ export function useGetTrack(trackId: string | null) {
     queryKey: ["track", trackId],
     queryFn: async () => {
       if (!actor || !trackId) return null;
-      return actor.getTrack(trackId);
+      return actor.getTrack(trackId) as unknown as Track | null;
     },
     enabled: !!actor && !isFetching && !!trackId,
   });
@@ -74,7 +75,7 @@ export function useGetMyUploadedTracks() {
     queryKey: ["myUploads"],
     queryFn: async () => {
       if (!actor) return [];
-      return actor.getMyUploadedTracks();
+      return actor.getMyUploadedTracks() as unknown as Track[];
     },
     enabled: !!actor && !isFetching,
   });
@@ -95,6 +96,18 @@ export function useGetAnalytics() {
   });
 }
 
+export function useGetMyTrackStats() {
+  const { actor, isFetching } = useActor();
+  return useQuery<MyTrackStat[]>({
+    queryKey: ["myTrackStats"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return (actor as any).getMyTrackStats();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
 export function useAddTrack() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
@@ -102,14 +115,21 @@ export function useAddTrack() {
     mutationFn: async ({
       track,
       audioFormat,
-      previewStartSeconds: _previewStartSeconds,
+      previewStartSeconds,
+      releaseDateTime,
     }: {
-      track: Track;
+      track: Omit<Track, "isPreSell" | "releaseDate">;
       audioFormat: string | null;
       previewStartSeconds?: bigint | null;
+      releaseDateTime?: bigint | null;
     }) => {
       if (!actor) throw new Error("Not authenticated");
-      return actor.addTrack(track, audioFormat);
+      return (actor as any).addTrack(
+        track,
+        audioFormat,
+        previewStartSeconds ?? null,
+        releaseDateTime ?? null,
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tracks"] });

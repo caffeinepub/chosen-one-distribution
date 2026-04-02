@@ -13,20 +13,25 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  BarChart2,
+  CalendarClock,
+  DollarSign,
   ImageIcon,
   Loader2,
   Music,
   Music2,
   Play,
   Trash2,
+  TrendingUp,
   Upload,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import type { Track } from "../backend.d";
+import type { MyTrackStat, Track } from "../backend.d";
 import WaveformPicker from "../components/WaveformPicker";
 import { useActor } from "../hooks/useActor";
 import { useBlobStorage } from "../hooks/useBlobStorage";
@@ -35,6 +40,7 @@ import {
   useAddTrack,
   useDeleteTrack,
   useGetAnalytics,
+  useGetMyTrackStats,
   useGetMyUploadedTracks,
   useIsAdmin,
 } from "../hooks/useQueries";
@@ -50,6 +56,8 @@ interface TrackFormData {
   audioFileFormat: string;
   previewStartSeconds: number;
   audioDuration: number;
+  isPreSell: boolean;
+  releaseDate: string;
 }
 
 const EMPTY_FORM: TrackFormData = {
@@ -63,6 +71,8 @@ const EMPTY_FORM: TrackFormData = {
   audioFileFormat: "",
   previewStartSeconds: 0,
   audioDuration: 0,
+  isPreSell: false,
+  releaseDate: "",
 };
 
 function TrackThumbnail({ blobId }: { blobId: string }) {
@@ -97,6 +107,8 @@ export default function UploadPage() {
     useGetMyUploadedTracks();
   const { data: isAdmin } = useIsAdmin();
   const { data: analytics } = useGetAnalytics();
+  const { data: myTrackStats = [], isLoading: loadingStats } =
+    useGetMyTrackStats();
 
   const getPlayCount = (trackId: string): number => {
     if (!analytics?.trackPlayCounts) return 0;
@@ -183,15 +195,15 @@ export default function UploadPage() {
 
       // Step 2: Save track metadata
       const price = Math.round(priceNum * 100);
-      const track: Track = {
+      const track = {
         id: crypto.randomUUID(),
         title: form.title,
         artist: form.artist,
         genre: form.genre,
         description: form.description,
         priceInCents: BigInt(price),
-        coverArtBlobId,
-        audioFileBlobId,
+        coverArtBlobId: coverArtBlobId || undefined,
+        audioFileBlobId: audioFileBlobId || undefined,
         uploadDate: BigInt(Date.now()) * BigInt(1_000_000),
       };
 
@@ -202,6 +214,10 @@ export default function UploadPage() {
           previewStartSeconds:
             form.previewStartSeconds > 0
               ? BigInt(Math.round(form.previewStartSeconds))
+              : null,
+          releaseDateTime:
+            form.isPreSell && form.releaseDate
+              ? BigInt(new Date(form.releaseDate).getTime()) * BigInt(1_000_000)
               : null,
         });
       } catch (err) {
@@ -353,6 +369,53 @@ export default function UploadPage() {
                 className="bg-muted/30 border-gold/20 focus:border-gold/60"
               />
             </div>
+          </div>
+
+          {/* Pre-Sell Toggle */}
+          <div className="space-y-3 p-4 rounded-xl border border-gold/20 bg-gold/5">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label className="text-foreground font-medium flex items-center gap-2">
+                  <CalendarClock className="w-4 h-4 text-gold/70" />
+                  Pre-Sell
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Allow fans to purchase before the release date
+                </p>
+              </div>
+              <Switch
+                checked={form.isPreSell}
+                onCheckedChange={(checked) =>
+                  setForm((p) => ({
+                    ...p,
+                    isPreSell: checked,
+                    releaseDate: checked ? p.releaseDate : "",
+                  }))
+                }
+                data-ocid="upload.presell.switch"
+                className="data-[state=checked]:bg-gold"
+              />
+            </div>
+            {form.isPreSell && (
+              <div className="space-y-2 pt-2 border-t border-gold/10">
+                <Label className="text-foreground font-medium text-sm">
+                  Release Date & Time *
+                </Label>
+                <Input
+                  type="datetime-local"
+                  value={form.releaseDate}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, releaseDate: e.target.value }))
+                  }
+                  data-ocid="upload.release_date.input"
+                  className="bg-muted/30 border-gold/20 focus:border-gold/60 text-foreground [color-scheme:dark]"
+                  min={new Date().toISOString().slice(0, 16)}
+                />
+                <p className="text-xs text-gold/60">
+                  Buyers can purchase now — the download unlocks on this date
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -609,6 +672,145 @@ export default function UploadPage() {
           </div>
         )}
       </motion.div>
+
+      {/* My Earnings */}
+      {myTracks.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+        >
+          <div className="flex items-center gap-3 mb-6">
+            <TrendingUp className="w-5 h-5 text-gold" />
+            <h2 className="font-display text-2xl font-bold text-foreground">
+              My Earnings
+            </h2>
+          </div>
+
+          {loadingStats ? (
+            <div
+              className="glass-card rounded-2xl p-8 animate-pulse bg-gold/5"
+              data-ocid="earnings.loading_state"
+            />
+          ) : (
+            <>
+              {/* Summary cards */}
+              <div className="grid grid-cols-3 gap-4 mb-6">
+                <div
+                  className="glass-card rounded-xl p-4 border border-gold/10 flex flex-col gap-1"
+                  data-ocid="earnings.revenue.card"
+                >
+                  <div className="flex items-center gap-2 text-gold/60 text-xs mb-1">
+                    <DollarSign className="w-3.5 h-3.5" /> Total Revenue
+                  </div>
+                  <span className="font-display text-xl font-bold text-gold">
+                    $
+                    {(
+                      myTrackStats.reduce(
+                        (s, t) => s + Number(t.revenueInCents),
+                        0,
+                      ) / 100
+                    ).toFixed(2)}
+                  </span>
+                </div>
+                <div
+                  className="glass-card rounded-xl p-4 border border-gold/10 flex flex-col gap-1"
+                  data-ocid="earnings.sales.card"
+                >
+                  <div className="flex items-center gap-2 text-gold/60 text-xs mb-1">
+                    <TrendingUp className="w-3.5 h-3.5" /> Total Sales
+                  </div>
+                  <span className="font-display text-xl font-bold text-foreground">
+                    {myTrackStats.reduce(
+                      (s, t) => s + Number(t.purchaseCount),
+                      0,
+                    )}
+                  </span>
+                </div>
+                <div
+                  className="glass-card rounded-xl p-4 border border-gold/10 flex flex-col gap-1"
+                  data-ocid="earnings.plays.card"
+                >
+                  <div className="flex items-center gap-2 text-gold/60 text-xs mb-1">
+                    <BarChart2 className="w-3.5 h-3.5" /> Preview Plays
+                  </div>
+                  <span className="font-display text-xl font-bold text-foreground">
+                    {myTrackStats.reduce(
+                      (s, t) => s + Number(t.previewPlayCount),
+                      0,
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              {/* Per-track breakdown */}
+              {myTrackStats.length > 0 ? (
+                <div className="glass-card rounded-2xl border border-gold/10 overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gold/10 bg-gold/5">
+                        <th className="text-left px-4 py-3 text-gold/60 font-medium">
+                          Track
+                        </th>
+                        <th className="text-right px-4 py-3 text-gold/60 font-medium">
+                          Sales
+                        </th>
+                        <th className="text-right px-4 py-3 text-gold/60 font-medium">
+                          Revenue
+                        </th>
+                        <th className="text-right px-4 py-3 text-gold/60 font-medium">
+                          Previews
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {myTrackStats.map((stat: MyTrackStat, i: number) => (
+                        <tr
+                          key={stat.trackId}
+                          className="border-b border-gold/5 hover:bg-gold/5 transition-colors"
+                          data-ocid={`earnings.item.${i + 1}`}
+                        >
+                          <td className="px-4 py-3">
+                            <p className="font-medium text-foreground truncate max-w-[180px]">
+                              {stat.title}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {stat.artist}
+                            </p>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <Badge className="bg-gold/10 text-gold border-gold/20 text-xs">
+                              {String(stat.purchaseCount)}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold text-gold">
+                            ${(Number(stat.revenueInCents) / 100).toFixed(2)}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <Badge className="bg-gold/5 text-gold/70 border-gold/10 text-xs font-mono">
+                              {String(stat.previewPlayCount)}
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div
+                  className="text-center py-10 glass-card rounded-2xl border border-gold/10"
+                  data-ocid="earnings.empty_state"
+                >
+                  <BarChart2 className="w-10 h-10 text-gold/20 mx-auto mb-3" />
+                  <p className="text-muted-foreground text-sm">
+                    No earnings data yet.
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+        </motion.div>
+      )}
     </div>
   );
 }

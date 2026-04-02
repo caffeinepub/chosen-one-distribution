@@ -12,6 +12,7 @@ export interface TransformationOutput {
     body: Uint8Array;
     headers: Array<http_header>;
 }
+// Track as returned by the backend (includes pre-sell metadata)
 export interface Track {
     id: string;
     audioFileBlobId?: string;
@@ -22,6 +23,8 @@ export interface Track {
     artist: string;
     priceInCents: bigint;
     uploadDate: Time;
+    isPreSell: boolean;
+    releaseDate?: Time;
 }
 export type Time = bigint;
 export interface http_header {
@@ -77,6 +80,20 @@ export interface TrackStat {
     purchaseCount: bigint;
     revenueInCents: bigint;
 }
+export interface MyTrackStat {
+    trackId: string;
+    title: string;
+    artist: string;
+    purchaseCount: bigint;
+    revenueInCents: bigint;
+    previewPlayCount: bigint;
+}
+export interface UploaderEarning {
+    uploaderPrincipal: string;
+    totalRevenueInCents: bigint;
+    totalPurchases: bigint;
+    trackCount: bigint;
+}
 export interface RevenueDataPoint {
     dateLabel: string;
     revenueInCents: bigint;
@@ -89,14 +106,16 @@ export interface AnalyticsResult {
     topTracks: Array<TrackStat>;
     revenueOverTime: Array<RevenueDataPoint>;
     trackPlayCounts: Array<[string, bigint]>;
+    uploaderEarnings: Array<UploaderEarning>;
 }
 export interface backendInterface {
-    addTrack(track: Track, audioFormat: string | null, previewStartSeconds: bigint | null): Promise<void>;
+    addTrack(track: Omit<Track, 'isPreSell' | 'releaseDate'>, audioFormat: string | null, previewStartSeconds: bigint | null, releaseDateTime: bigint | null): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     createCheckoutSession(items: Array<ShoppingItem>, successUrl: string, cancelUrl: string): Promise<string>;
     deleteTrack(trackId: string): Promise<void>;
     getAllTracks(): Promise<Array<Track>>;
     getAnalytics(): Promise<AnalyticsResult>;
+    getMyTrackStats(): Promise<Array<MyTrackStat>>;
     getMyUploadedTracks(): Promise<Array<Track>>;
     getCallerUserRole(): Promise<UserRole>;
     getStripeSessionStatus(sessionId: string): Promise<StripeSessionStatus>;
@@ -112,6 +131,6 @@ export interface backendInterface {
     recordPreviewPlay(trackId: string): Promise<void>;
     setStripeConfiguration(config: StripeConfiguration): Promise<void>;
     transform(input: TransformationInput): Promise<TransformationOutput>;
-    updateTrack(track: Track): Promise<void>;
+    updateTrack(track: Omit<Track, 'isPreSell' | 'releaseDate'>): Promise<void>;
     verifyPaymentAndRecordPurchase(sessionId: string, trackId: string): Promise<void>;
 }
