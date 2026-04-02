@@ -45,6 +45,7 @@ export default function TrackCard({
   const [progress, setProgress] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasRecordedPlay = useRef(false);
 
   const priceDisplay = `$${(Number(track.priceInCents) / 100).toFixed(2)}`;
   const coverUrl = track.coverArtBlobId
@@ -54,7 +55,6 @@ export default function TrackCard({
     ? getBlobUrl(track.audioFileBlobId)
     : null;
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: cleanup on unmount only
   useEffect(() => {
     return () => {
       if (audioRef.current) {
@@ -121,6 +121,20 @@ export default function TrackCard({
       setIsPlaying(false);
     });
     setIsPlaying(true);
+
+    // Record preview play (fire-and-forget, once per session per track)
+    if (!hasRecordedPlay.current && actor) {
+      hasRecordedPlay.current = true;
+      try {
+        (actor as unknown as { recordPreviewPlay(id: string): Promise<void> })
+          .recordPreviewPlay(track.id)
+          .catch(() => {
+            /* silently ignore */
+          });
+      } catch {
+        // silently ignore
+      }
+    }
 
     // Stop after PREVIEW_LIMIT_SECONDS
     if (previewTimerRef.current) clearTimeout(previewTimerRef.current);

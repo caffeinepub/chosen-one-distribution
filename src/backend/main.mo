@@ -56,11 +56,19 @@ actor {
     revenueInCents : Nat;
   };
 
+  type RevenuePoint = {
+    dateLabel : Text; // "YYYY-MM-DD"
+    revenueInCents : Nat;
+    purchaseCount : Nat;
+  };
+
   type AnalyticsResult = {
     totalTracks : Nat;
     totalPurchases : Nat;
     totalRevenueInCents : Nat;
     topTracks : [TrackStat];
+    revenueOverTime : [RevenuePoint];
+    trackPlayCounts : [(Text, Nat)]; // (trackId, playCount)
   };
 
   let tracks = Map.empty<Text, Track>();
@@ -70,6 +78,8 @@ actor {
   let trackAudioFormats = Map.empty<Text, Text>();
   // Separate map for preview start seconds — safe to add without migration
   let trackPreviewStartSeconds = Map.empty<Text, Nat>();
+  // Play counts for preview tracking
+  let trackPlayCounts = Map.empty<Text, Nat>();
   let accessControlState = AccessControl.initState();
 
   include MixinAuthorization(accessControlState);
@@ -191,7 +201,30 @@ actor {
         else if (a.purchaseCount < b.purchaseCount) { #greater }
         else { #equal };
       });
-    { totalTracks; totalPurchases; totalRevenueInCents; topTracks };
+    // Build revenueOverTime grouped by day (nanoseconds -> seconds -> day)
+    let revenueByDay = Map.empty<Text, (Nat, Nat)>(); // dateLabel -> (revenue, count)
+    for (userPurchaseSet in userPurchases.values()) {
+      for (purchase in userPurchaseSet.toArray().vals()) {
+        let secs = purchase.purchaseDate / 1_000_000_000;
+        let daysSinceEpoch = secs / 86400;
+        let year = 1970 + (daysSinceEpoch * 400 / 146097);
+        let dateLabel = year.toText() # "-" # ((daysSinceEpoch / 30) % 12 + 1).toText() # "-" # (daysSinceEpoch % 30 + 1).toText();
+        let prev = switch (revenueByDay.get(dateLabel)) {
+          case (null) { (0, 0) };
+          case (?v) { v };
+        };
+        revenueByDay.add(dateLabel, (prev.0 + purchase.amountPaidInCents, prev.1 + 1));
+      };
+    };
+    let revenueOverTime = revenueByDay.entries().toArray()
+      .map(func(e : (Text, (Nat, Nat))) : RevenuePoint {
+        { dateLabel = e.0; revenueInCents = e.1.0; purchaseCount = e.1.1 };
+      })
+      .sort(func(a : RevenuePoint, b : RevenuePoint) : { #less; #equal; #greater } {
+        Text.compare(a.dateLabel, b.dateLabel);
+      });
+    let playCounts = trackPlayCounts.entries().toArray();
+    { totalTracks; totalPurchases; totalRevenueInCents; topTracks; revenueOverTime; trackPlayCounts = playCounts };
   };
 
   public shared ({ caller }) func setStripeConfiguration(config : Stripe.StripeConfiguration) : async () {
@@ -301,5 +334,21 @@ actor {
       case (?track) { track };
     };
     track.coverArtBlobId;
+  };
+
+  // Anyone can record a preview play (no auth required)
+  public shared func recordPreviewPlay(trackId : Text) : async () {
+    let prev = switch (trackPlayCounts.get(trackId)) {
+      case (null) { 0 };
+      case (?n) { n };
+    };
+    trackPlayCounts.add(trackId, prev + 1);
+  };
+
+  public query ({ caller }) func getTrackPlayCounts() : async [(Text, Nat)] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can view play counts");
+    };
+    trackPlayCounts.entries().toArray();
   };
 };

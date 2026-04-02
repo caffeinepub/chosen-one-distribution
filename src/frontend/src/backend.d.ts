@@ -77,11 +77,18 @@ export interface TrackStat {
     purchaseCount: bigint;
     revenueInCents: bigint;
 }
+export interface RevenueDataPoint {
+    dateLabel: string;
+    revenueInCents: bigint;
+    purchaseCount: bigint;
+}
 export interface AnalyticsResult {
     totalTracks: bigint;
     totalPurchases: bigint;
     totalRevenueInCents: bigint;
     topTracks: Array<TrackStat>;
+    revenueOverTime: Array<RevenueDataPoint>;
+    trackPlayCounts: Array<[string, bigint]>;
 }
 export interface backendInterface {
     addTrack(track: Track, audioFormat: string | null, previewStartSeconds: bigint | null): Promise<void>;
@@ -102,6 +109,7 @@ export interface backendInterface {
     hasPurchasedTrack(trackId: string, userId: Principal): Promise<boolean>;
     isCallerAdmin(): Promise<boolean>;
     isStripeConfigured(): Promise<boolean>;
+    recordPreviewPlay(trackId: string): Promise<void>;
     setStripeConfiguration(config: StripeConfiguration): Promise<void>;
     transform(input: TransformationInput): Promise<TransformationOutput>;
     updateTrack(track: Track): Promise<void>;

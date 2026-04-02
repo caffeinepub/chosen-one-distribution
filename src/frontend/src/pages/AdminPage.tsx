@@ -12,6 +12,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -46,6 +51,7 @@ import {
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
 import type { Page } from "../App";
 import type { Track } from "../backend.d";
@@ -801,6 +807,102 @@ export default function AdminPage({
                   />
                 </div>
 
+                {/* Revenue Over Time Chart */}
+                {analytics?.revenueOverTime &&
+                  analytics.revenueOverTime.length > 0 && (
+                    <div data-ocid="admin.analytics.panel">
+                      <div className="flex items-center gap-2 mb-4">
+                        <TrendingUp className="w-4 h-4 text-gold" />
+                        <h2 className="font-display font-semibold text-lg">
+                          Revenue Over Time
+                        </h2>
+                      </div>
+                      <div className="glass-card rounded-xl p-4 border border-gold/10">
+                        <ChartContainer
+                          config={{
+                            revenue: { label: "Revenue", color: "#D4AF37" },
+                          }}
+                          className="h-[260px] w-full"
+                        >
+                          <AreaChart
+                            data={analytics.revenueOverTime.map((d) => ({
+                              date: d.dateLabel,
+                              revenue: Number(d.revenueInCents) / 100,
+                              purchases: Number(d.purchaseCount),
+                            }))}
+                            margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+                          >
+                            <defs>
+                              <linearGradient
+                                id="goldGradient"
+                                x1="0"
+                                y1="0"
+                                x2="0"
+                                y2="1"
+                              >
+                                <stop
+                                  offset="5%"
+                                  stopColor="#D4AF37"
+                                  stopOpacity={0.35}
+                                />
+                                <stop
+                                  offset="95%"
+                                  stopColor="#D4AF37"
+                                  stopOpacity={0}
+                                />
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid
+                              strokeDasharray="3 3"
+                              stroke="rgba(212,175,55,0.1)"
+                            />
+                            <XAxis
+                              dataKey="date"
+                              tick={{
+                                fill: "rgba(212,175,55,0.5)",
+                                fontSize: 11,
+                              }}
+                              axisLine={{ stroke: "rgba(212,175,55,0.2)" }}
+                              tickLine={false}
+                            />
+                            <YAxis
+                              tick={{
+                                fill: "rgba(212,175,55,0.5)",
+                                fontSize: 11,
+                              }}
+                              axisLine={false}
+                              tickLine={false}
+                              tickFormatter={(v) => `$${v}`}
+                            />
+                            <ChartTooltip
+                              content={
+                                <ChartTooltipContent
+                                  formatter={(value) => [
+                                    `$${Number(value).toFixed(2)}`,
+                                    "Revenue",
+                                  ]}
+                                />
+                              }
+                            />
+                            <Area
+                              type="monotone"
+                              dataKey="revenue"
+                              stroke="#D4AF37"
+                              strokeWidth={2}
+                              fill="url(#goldGradient)"
+                              dot={{ fill: "#D4AF37", r: 3, strokeWidth: 0 }}
+                              activeDot={{
+                                r: 5,
+                                fill: "#D4AF37",
+                                strokeWidth: 0,
+                              }}
+                            />
+                          </AreaChart>
+                        </ChartContainer>
+                      </div>
+                    </div>
+                  )}
+
                 {/* Top Tracks Table */}
                 <div>
                   <div className="flex items-center gap-2 mb-4">
@@ -841,6 +943,9 @@ export default function AdminPage({
                             <TableHead className="text-gold/70 font-medium text-xs tracking-widest uppercase text-right">
                               Revenue
                             </TableHead>
+                            <TableHead className="text-gold/70 font-medium text-xs tracking-widest uppercase text-right">
+                              Previews
+                            </TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -880,6 +985,15 @@ export default function AdminPage({
                                 </TableCell>
                                 <TableCell className="text-right text-gold font-semibold">
                                   {fmtRevenue(stat.revenueInCents)}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Badge className="bg-gold/5 text-gold/70 border-gold/10 text-xs font-mono">
+                                    {String(
+                                      analytics.trackPlayCounts?.find(
+                                        ([id]) => id === stat.trackId,
+                                      )?.[1] ?? 0n,
+                                    )}
+                                  </Badge>
                                 </TableCell>
                               </TableRow>
                             ))}

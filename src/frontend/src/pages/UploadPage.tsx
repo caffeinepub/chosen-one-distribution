@@ -19,6 +19,7 @@ import {
   Loader2,
   Music,
   Music2,
+  Play,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -33,7 +34,9 @@ import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   useAddTrack,
   useDeleteTrack,
+  useGetAnalytics,
   useGetMyUploadedTracks,
+  useIsAdmin,
 } from "../hooks/useQueries";
 
 interface TrackFormData {
@@ -92,6 +95,14 @@ export default function UploadPage() {
   const deleteTrack = useDeleteTrack();
   const { data: myTracks = [], isLoading: loadingMyTracks } =
     useGetMyUploadedTracks();
+  const { data: isAdmin } = useIsAdmin();
+  const { data: analytics } = useGetAnalytics();
+
+  const getPlayCount = (trackId: string): number => {
+    if (!analytics?.trackPlayCounts) return 0;
+    const entry = analytics.trackPlayCounts.find(([id]) => id === trackId);
+    return entry ? Number(entry[1]) : 0;
+  };
 
   const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
@@ -537,9 +548,17 @@ export default function UploadPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
-                  <span className="text-gold font-medium text-sm">
-                    ${(Number(track.priceInCents) / 100).toFixed(2)}
-                  </span>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="text-gold font-medium text-sm">
+                      ${(Number(track.priceInCents) / 100).toFixed(2)}
+                    </span>
+                    {isAdmin && (
+                      <span className="text-[10px] text-gold/50 flex items-center gap-1">
+                        <Play className="w-2.5 h-2.5" />
+                        {getPlayCount(track.id)} plays
+                      </span>
+                    )}
+                  </div>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button
