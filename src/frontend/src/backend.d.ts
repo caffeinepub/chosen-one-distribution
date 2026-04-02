@@ -70,12 +70,26 @@ export enum UserRole {
     user = "user",
     guest = "guest"
 }
+export interface TrackStat {
+    trackId: string;
+    title: string;
+    artist: string;
+    purchaseCount: bigint;
+    revenueInCents: bigint;
+}
+export interface AnalyticsResult {
+    totalTracks: bigint;
+    totalPurchases: bigint;
+    totalRevenueInCents: bigint;
+    topTracks: Array<TrackStat>;
+}
 export interface backendInterface {
     addTrack(track: Track, audioFormat: string | null, previewStartSeconds: bigint | null): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     createCheckoutSession(items: Array<ShoppingItem>, successUrl: string, cancelUrl: string): Promise<string>;
     deleteTrack(trackId: string): Promise<void>;
     getAllTracks(): Promise<Array<Track>>;
+    getAnalytics(): Promise<AnalyticsResult>;
     getMyUploadedTracks(): Promise<Array<Track>>;
     getCallerUserRole(): Promise<UserRole>;
     getStripeSessionStatus(sessionId: string): Promise<StripeSessionStatus>;

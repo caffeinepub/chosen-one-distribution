@@ -48,6 +48,21 @@ actor {
     };
   };
 
+  type TrackStat = {
+    trackId : Text;
+    title : Text;
+    artist : Text;
+    purchaseCount : Nat;
+    revenueInCents : Nat;
+  };
+
+  type AnalyticsResult = {
+    totalTracks : Nat;
+    totalPurchases : Nat;
+    totalRevenueInCents : Nat;
+    topTracks : [TrackStat];
+  };
+
   let tracks = Map.empty<Text, Track>();
   let trackOwners = Map.empty<Text, Principal>();
   let userPurchases = Map.empty<Principal, Set.Set<Purchase>>();
@@ -132,6 +147,51 @@ actor {
 
   public query ({ caller }) func getTrackPreviewStartSeconds(trackId : Text) : async ?Nat {
     trackPreviewStartSeconds.get(trackId);
+  };
+
+  public query ({ caller }) func getAnalytics() : async AnalyticsResult {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can view analytics");
+    };
+    let totalTracks = tracks.size();
+    let purchaseCountMap = Map.empty<Text, Nat>();
+    let revenueMap = Map.empty<Text, Nat>();
+    var totalPurchases : Nat = 0;
+    var totalRevenueInCents : Nat = 0;
+    for (userPurchaseSet in userPurchases.values()) {
+      for (purchase in userPurchaseSet.toArray().vals()) {
+        totalPurchases += 1;
+        totalRevenueInCents += purchase.amountPaidInCents;
+        let prevCount = switch (purchaseCountMap.get(purchase.trackId)) {
+          case (null) { 0 };
+          case (?n) { n };
+        };
+        purchaseCountMap.add(purchase.trackId, prevCount + 1);
+        let prevRevenue = switch (revenueMap.get(purchase.trackId)) {
+          case (null) { 0 };
+          case (?n) { n };
+        };
+        revenueMap.add(purchase.trackId, prevRevenue + purchase.amountPaidInCents);
+      };
+    };
+    let topTracks = tracks.values().toArray()
+      .map(func(t : Track) : TrackStat {
+        let count = switch (purchaseCountMap.get(t.id)) {
+          case (null) { 0 };
+          case (?n) { n };
+        };
+        let rev = switch (revenueMap.get(t.id)) {
+          case (null) { 0 };
+          case (?n) { n };
+        };
+        { trackId = t.id; title = t.title; artist = t.artist; purchaseCount = count; revenueInCents = rev };
+      })
+      .sort(func(a : TrackStat, b : TrackStat) : { #less; #equal; #greater } {
+        if (a.purchaseCount > b.purchaseCount) { #less }
+        else if (a.purchaseCount < b.purchaseCount) { #greater }
+        else { #equal };
+      });
+    { totalTracks; totalPurchases; totalRevenueInCents; topTracks };
   };
 
   public shared ({ caller }) func setStripeConfiguration(config : Stripe.StripeConfiguration) : async () {

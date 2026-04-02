@@ -31,12 +31,16 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  BarChart3,
+  DollarSign,
   Loader2,
   Music,
   Plus,
   Save,
   Shield,
+  ShoppingBag,
   Trash2,
+  TrendingUp,
   Upload,
   X,
 } from "lucide-react";
@@ -50,6 +54,7 @@ import {
   useAddTrack,
   useDeleteTrack,
   useGetAllTracks,
+  useGetAnalytics,
   useIsStripeConfigured,
   useSetStripeConfiguration,
 } from "../hooks/useQueries";
@@ -95,6 +100,37 @@ function TrackThumbnail({ blobId }: { blobId: string }) {
   );
 }
 
+function KpiCard({
+  icon,
+  label,
+  value,
+  sub,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  sub?: string;
+}) {
+  return (
+    <div className="glass-card rounded-xl p-6 flex flex-col gap-3 border border-gold/20">
+      <div className="flex items-center justify-between">
+        <span className="text-muted-foreground text-xs tracking-widest uppercase font-medium">
+          {label}
+        </span>
+        <div className="w-9 h-9 rounded-lg bg-gold/10 flex items-center justify-center text-gold">
+          {icon}
+        </div>
+      </div>
+      <div>
+        <p className="font-display text-3xl font-bold gold-gradient-text leading-none">
+          {value}
+        </p>
+        {sub && <p className="text-muted-foreground text-xs mt-1.5">{sub}</p>}
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPage({
   isAuthenticated,
   isAdmin,
@@ -104,6 +140,7 @@ export default function AdminPage({
   const deleteTrack = useDeleteTrack();
   const setStripeConfig = useSetStripeConfiguration();
   const { data: stripeConfigured } = useIsStripeConfigured();
+  const { data: analytics, isLoading: analyticsLoading } = useGetAnalytics();
   const { uploadBlob } = useBlobStorage();
 
   const [formOpen, setFormOpen] = useState(false);
@@ -231,6 +268,8 @@ export default function AdminPage({
     document.getElementById(id)?.click();
   };
 
+  const fmtRevenue = (cents: bigint) => `$${(Number(cents) / 100).toFixed(2)}`;
+
   return (
     <div className="container mx-auto px-4 py-12">
       <motion.div
@@ -263,6 +302,14 @@ export default function AdminPage({
               className="data-[state=active]:bg-gold/20 data-[state=active]:text-gold"
             >
               Stripe Settings
+            </TabsTrigger>
+            <TabsTrigger
+              value="analytics"
+              data-ocid="admin.analytics.tab"
+              className="data-[state=active]:bg-gold/20 data-[state=active]:text-gold"
+            >
+              <BarChart3 className="w-3.5 h-3.5 mr-1.5" />
+              Analytics
             </TabsTrigger>
           </TabsList>
 
@@ -712,6 +759,137 @@ export default function AdminPage({
                 </Button>
               </div>
             </div>
+          </TabsContent>
+
+          {/* Analytics Tab */}
+          <TabsContent value="analytics">
+            {analyticsLoading ? (
+              <div
+                data-ocid="admin.analytics.loading_state"
+                className="text-center py-10 text-muted-foreground"
+              >
+                <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-gold" />
+                Loading analytics...
+              </div>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35 }}
+                className="space-y-8"
+                data-ocid="admin.analytics.panel"
+              >
+                {/* KPI Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <KpiCard
+                    icon={<Music className="w-4 h-4" />}
+                    label="Total Tracks"
+                    value={String(analytics?.totalTracks ?? 0)}
+                    sub="In catalog"
+                  />
+                  <KpiCard
+                    icon={<ShoppingBag className="w-4 h-4" />}
+                    label="Total Purchases"
+                    value={String(analytics?.totalPurchases ?? 0)}
+                    sub="All-time sales"
+                  />
+                  <KpiCard
+                    icon={<DollarSign className="w-4 h-4" />}
+                    label="Total Revenue"
+                    value={fmtRevenue(analytics?.totalRevenueInCents ?? 0n)}
+                    sub="All-time earnings"
+                  />
+                </div>
+
+                {/* Top Tracks Table */}
+                <div>
+                  <div className="flex items-center gap-2 mb-4">
+                    <TrendingUp className="w-4 h-4 text-gold" />
+                    <h2 className="font-display font-semibold text-lg">
+                      Top Performing Tracks
+                    </h2>
+                  </div>
+
+                  {!analytics?.topTracks?.length ? (
+                    <div
+                      className="text-center py-16 glass-card rounded-xl border border-gold/10"
+                      data-ocid="admin.analytics.empty_state"
+                    >
+                      <BarChart3 className="w-10 h-10 text-gold/20 mx-auto mb-3" />
+                      <p className="text-muted-foreground text-sm">
+                        No sales data yet. Revenue data will appear here once
+                        purchases are made.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="glass-card rounded-xl overflow-hidden border border-gold/10">
+                      <Table data-ocid="admin.analytics.table">
+                        <TableHeader>
+                          <TableRow className="border-gold/10 hover:bg-transparent">
+                            <TableHead className="text-gold/70 font-medium text-xs tracking-widest uppercase w-16">
+                              Rank
+                            </TableHead>
+                            <TableHead className="text-gold/70 font-medium text-xs tracking-widest uppercase">
+                              Track Title
+                            </TableHead>
+                            <TableHead className="text-gold/70 font-medium text-xs tracking-widest uppercase">
+                              Artist
+                            </TableHead>
+                            <TableHead className="text-gold/70 font-medium text-xs tracking-widest uppercase text-right">
+                              Sales
+                            </TableHead>
+                            <TableHead className="text-gold/70 font-medium text-xs tracking-widest uppercase text-right">
+                              Revenue
+                            </TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {[...analytics.topTracks]
+                            .sort(
+                              (a, b) =>
+                                Number(b.purchaseCount) -
+                                Number(a.purchaseCount),
+                            )
+                            .map((stat, i) => (
+                              <TableRow
+                                key={stat.trackId}
+                                className="border-gold/10 hover:bg-gold/5"
+                                data-ocid={`admin.analytics.row.${i + 1}`}
+                              >
+                                <TableCell>
+                                  {i === 0 ? (
+                                    <span className="font-bold text-base gold-gradient-text">
+                                      #1
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted-foreground font-mono text-sm">
+                                      #{i + 1}
+                                    </span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="font-display font-medium">
+                                  {stat.title}
+                                </TableCell>
+                                <TableCell className="text-muted-foreground text-sm">
+                                  {stat.artist}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Badge className="bg-gold/10 text-gold border-gold/20 text-xs">
+                                    {String(stat.purchaseCount)}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-right text-gold font-semibold">
+                                  {fmtRevenue(stat.revenueInCents)}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
           </TabsContent>
         </Tabs>
       </motion.div>

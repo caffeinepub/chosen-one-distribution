@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
+  AnalyticsResult,
   Purchase,
   ShoppingItem,
   StripeConfiguration,
@@ -74,6 +75,21 @@ export function useGetMyUploadedTracks() {
     queryFn: async () => {
       if (!actor) return [];
       return actor.getMyUploadedTracks();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useGetAnalytics() {
+  const { actor, isFetching } = useActor();
+  return useQuery<AnalyticsResult | null>({
+    queryKey: ["analytics"],
+    queryFn: async () => {
+      if (!actor) return null;
+      // getAnalytics is added in the new backend version
+      return (
+        actor as unknown as { getAnalytics(): Promise<AnalyticsResult> }
+      ).getAnalytics();
     },
     enabled: !!actor && !isFetching,
   });
