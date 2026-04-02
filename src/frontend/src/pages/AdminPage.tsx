@@ -69,6 +69,7 @@ import {
 interface AdminPageProps {
   isAuthenticated: boolean;
   isAdmin: boolean;
+  isAdminLoading?: boolean;
   navigate: (p: Page) => void;
 }
 
@@ -141,6 +142,7 @@ function KpiCard({
 export default function AdminPage({
   isAuthenticated,
   isAdmin,
+  isAdminLoading,
 }: AdminPageProps) {
   const { data: tracks = [], isLoading } = useGetAllTracks();
   const addTrack = useAddTrack();
@@ -171,7 +173,8 @@ export default function AdminPage({
     };
   }, [form.coverArtFile]);
 
-  if (!isAuthenticated || !isAdmin) {
+  // Show loading state while admin check is in progress
+  if (!isAuthenticated) {
     return (
       <div className="container mx-auto px-4 py-20 text-center">
         <Shield className="w-16 h-16 text-gold/20 mx-auto mb-4" />
@@ -179,10 +182,32 @@ export default function AdminPage({
           Admin Panel
         </h1>
         <p className="text-muted-foreground">
-          {!isAuthenticated
-            ? "Please sign in to access the admin panel."
-            : "You do not have admin access."}
+          Please sign in to access the admin panel.
         </p>
+      </div>
+    );
+  }
+
+  if (isAdminLoading) {
+    return (
+      <div className="container mx-auto px-4 py-20 text-center">
+        <Loader2 className="w-10 h-10 text-gold/60 mx-auto mb-4 animate-spin" />
+        <h1 className="font-display text-3xl font-bold gold-gradient-text mb-3">
+          Admin Panel
+        </h1>
+        <p className="text-muted-foreground">Verifying admin access...</p>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="container mx-auto px-4 py-20 text-center">
+        <Shield className="w-16 h-16 text-gold/20 mx-auto mb-4" />
+        <h1 className="font-display text-3xl font-bold gold-gradient-text mb-3">
+          Admin Panel
+        </h1>
+        <p className="text-muted-foreground">You do not have admin access.</p>
       </div>
     );
   }

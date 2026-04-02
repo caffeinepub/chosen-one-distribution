@@ -18,7 +18,7 @@ export default function App() {
   const [search, setSearch] = useState("");
   const { identity } = useInternetIdentity();
   const isAuthenticated = !!identity && !identity.getPrincipal().isAnonymous();
-  const { data: isAdmin } = useIsAdmin();
+  const { data: isAdmin, isLoading: isAdminLoading } = useIsAdmin();
 
   useEffect(() => {
     const syncFromHash = () => {
@@ -66,6 +66,7 @@ export default function App() {
           <AdminPage
             isAuthenticated={isAuthenticated}
             isAdmin={!!isAdmin}
+            isAdminLoading={isAdminLoading}
             navigate={navigate}
           />
         )}
