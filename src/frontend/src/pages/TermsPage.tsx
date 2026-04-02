@@ -21,7 +21,7 @@ function Section({
   );
 }
 
-const BUSINESS_NAME = "Chosen One Distribution";
+const BUSINESS_NAME = "Chosen One 👑 Productions";
 const CONTACT_EMAIL = "ChosenOneProductions901@gmail.com";
 const GOVERNING_STATE = "the State of Georgia, United States";
 

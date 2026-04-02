@@ -492,7 +492,29 @@ export class StorageClient {
       console.log("Certificate:", respone.certificate);
       return respone.certificate;
     }
-    throw new Error("Expected v3 response body");
+
+    // Fallback: v3 sync response not available — poll readState for the certificate
+    const requestId = result.requestId;
+    const encoder = new TextEncoder();
+    const requestStatusPath = encoder.encode("request_status");
+    const path = [requestStatusPath, requestId];
+
+    const MAX_POLL_ATTEMPTS = 30;
+    const POLL_INTERVAL_MS = 1000;
+
+    for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      const stateResponse = await this.agent.readState(this.backendCanisterId, {
+        paths: [path],
+      });
+      if (stateResponse?.certificate?.length) {
+        return stateResponse.certificate;
+      }
+    }
+
+    throw new Error(
+      "Upload certificate not available after polling. Please try again.",
+    );
   }
 
   public async putFile(

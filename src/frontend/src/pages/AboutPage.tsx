@@ -65,8 +65,8 @@ export default function AboutPage() {
               <span className="text-foreground">Refuse to Settle</span>
             </h1>
             <p className="text-muted-foreground text-lg md:text-xl max-w-2xl mx-auto leading-relaxed">
-              Chosen One Distribution is the premium gateway between artists and
-              their audience — powered by blockchain, secured by Stripe, and
+              Chosen One 👑 Productions is the premium gateway between artists
+              and their audience — powered by blockchain, secured by Stripe, and
               designed to make legends.
             </p>
           </motion.div>
@@ -88,7 +88,7 @@ export default function AboutPage() {
             </h2>
             <p className="text-muted-foreground text-base md:text-lg leading-relaxed max-w-3xl mx-auto">
               The music industry has long favored gatekeepers over creators. We
-              built Chosen One Distribution to flip that script. Every artist
+              built Chosen One 👑 Productions to flip that script. Every artist
               deserves a platform that respects their craft, protects their
               rights, and puts money directly in their hands — without
               middlemen, without compromises.

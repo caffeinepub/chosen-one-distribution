@@ -74,7 +74,7 @@ export default function Header({
               Chosen One
             </span>
             <span className="text-[10px] tracking-[0.3em] text-muted-foreground uppercase">
-              Distribution
+              Productions
             </span>
           </div>
         </button>

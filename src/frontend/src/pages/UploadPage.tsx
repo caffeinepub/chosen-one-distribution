@@ -251,7 +251,7 @@ export default function UploadPage() {
             Sign In to Upload
           </h2>
           <p className="text-muted-foreground mb-6 text-sm">
-            Join Chosen One Distribution and share your music with the world.
+            Join Chosen One 👑 Productions and share your music with the world.
           </p>
           <Button
             onClick={login}
@@ -290,7 +290,7 @@ export default function UploadPage() {
           Share Your Music
         </h1>
         <p className="text-muted-foreground">
-          Upload your track to the Chosen One Distribution catalog.
+          Upload your track to the Chosen One 👑 Productions catalog.
         </p>
       </motion.div>
 

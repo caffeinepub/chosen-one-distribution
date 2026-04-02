@@ -24,7 +24,7 @@ export default function Footer({ navigate }: FooterProps) {
                 Chosen One
               </span>
               <span className="text-muted-foreground text-sm ml-1">
-                Distribution
+                Productions
               </span>
             </div>
           </div>
