@@ -1,7 +1,6 @@
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronDown, Music, Search, Upload } from "lucide-react";
+import { ChevronDown, Music, Upload } from "lucide-react";
 import { motion } from "motion/react";
 import { useRef, useState } from "react";
 import type { Page } from "../App";
@@ -13,13 +12,17 @@ import { useGetAllTracks, useGetUserPurchases } from "../hooks/useQueries";
 interface HomePageProps {
   isAuthenticated: boolean;
   navigate?: (p: Page) => void;
+  search: string;
 }
 
-export default function HomePage({ isAuthenticated, navigate }: HomePageProps) {
+export default function HomePage({
+  isAuthenticated,
+  navigate,
+  search,
+}: HomePageProps) {
   const { login } = useInternetIdentity();
   const { data: tracks = [], isLoading } = useGetAllTracks();
   const { data: purchases = [] } = useGetUserPurchases();
-  const [search, setSearch] = useState("");
   const [genre, setGenre] = useState("All");
   const catalogRef = useRef<HTMLElement>(null);
 
@@ -216,35 +219,23 @@ export default function HomePage({ isAuthenticated, navigate }: HomePageProps) {
             Premium tracks from the chosen artists
           </p>
 
-          {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-3 mb-8">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search tracks, artists..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                data-ocid="catalog.search_input"
-                className="pl-9 bg-muted border-gold/20 focus:border-gold/50 text-foreground placeholder:text-muted-foreground"
-              />
-            </div>
-            <div className="flex gap-2 flex-wrap">
-              {genres.map((g) => (
-                <button
-                  key={g}
-                  type="button"
-                  onClick={() => setGenre(g)}
-                  data-ocid={`catalog.${g.toLowerCase()}.tab`}
-                  className={`px-3 py-2 text-xs rounded-md font-medium tracking-wide transition-all ${
-                    genre === g
-                      ? "bg-gold/20 text-gold border border-gold/40"
-                      : "bg-muted text-muted-foreground hover:text-foreground border border-transparent"
-                  }`}
-                >
-                  {g}
-                </button>
-              ))}
-            </div>
+          {/* Genre Filters */}
+          <div className="flex gap-2 flex-wrap mb-8">
+            {genres.map((g) => (
+              <button
+                key={g}
+                type="button"
+                onClick={() => setGenre(g)}
+                data-ocid={`catalog.${g.toLowerCase()}.tab`}
+                className={`px-3 py-2 text-xs rounded-md font-medium tracking-wide transition-all ${
+                  genre === g
+                    ? "bg-gold/20 text-gold border border-gold/40"
+                    : "bg-muted text-muted-foreground hover:text-foreground border border-transparent"
+                }`}
+              >
+                {g}
+              </button>
+            ))}
           </div>
 
           {/* Track Grid */}

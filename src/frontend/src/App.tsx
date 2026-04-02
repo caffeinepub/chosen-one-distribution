@@ -15,6 +15,7 @@ export type Page = "home" | "library" | "admin" | "upload" | "about" | "terms";
 
 export default function App() {
   const [page, setPage] = useState<Page>("home");
+  const [search, setSearch] = useState("");
   const { identity } = useInternetIdentity();
   const isAuthenticated = !!identity && !identity.getPrincipal().isAnonymous();
   const { data: isAdmin } = useIsAdmin();
@@ -46,10 +47,16 @@ export default function App() {
         navigate={navigate}
         isAuthenticated={isAuthenticated}
         isAdmin={!!isAdmin}
+        search={search}
+        onSearchChange={setSearch}
       />
       <main className="flex-1">
         {page === "home" && (
-          <HomePage isAuthenticated={isAuthenticated} navigate={navigate} />
+          <HomePage
+            isAuthenticated={isAuthenticated}
+            navigate={navigate}
+            search={search}
+          />
         )}
         {page === "library" && (
           <LibraryPage isAuthenticated={isAuthenticated} navigate={navigate} />
